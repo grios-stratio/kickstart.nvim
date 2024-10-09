@@ -84,14 +84,20 @@ I hope you enjoy your Neovim journey,
 P.S. You can delete this when you're done too. It's your config now! :)
 --]]
 
+-- vim.cmd 'language en_US'
+
 -- Set <space> as the leader key
 -- See `:help mapleader`
 --  NOTE: Must happen before plugins are loaded (otherwise wrong leader will be used)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+-- Para añadir mi vimrc mientras lo migro a lua
+local vimrc = vim.fn.stdpath 'config' .. '/vimrc.vim'
+vim.cmd.source(vimrc)
+
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.opt`
@@ -162,10 +168,25 @@ vim.opt.scrolloff = 10
 
 -- Clear highlights on search when pressing <Esc> in normal mode
 --  See `:help hlsearch`
-vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
+vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>', { silent = true, desc = 'Clear Highlights' })
 
--- Diagnostic keymaps
+-- do not wrap by default, and keymap to toggle
+vim.o.wrap = false
+vim.keymap.set('n', '<leader>tw', function()
+  vim.o.wrap = not vim.o.wrap
+end, { desc = 'Toggle Wrap Lines' })
+
+-- do not wrap lines in the middle of a word, and keymap to toggle
+vim.o.linebreak = true
+vim.keymap.set('n', '<leader>tb', function()
+  vim.o.linebreak = not vim.o.linebreak
+end, { desc = 'Toggle Break Lines' })
+
+-- Diagnostic keymaps and general settings
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
+vim.keymap.set('n', '#', vim.diagnostic.open_float, { desc = 'Show Diagnostic Info' })
+vim.diagnostic.config { virtual_text = false }
+vim.keymap.set('n', '<M-=>', vim.lsp.buf.hover, { desc = 'Show LSP Info of Thing at Point' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -184,11 +205,6 @@ vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' }
 -- Keybinds to make split navigation easier.
 --  Use CTRL+<hjkl> to switch between windows
 --
---  See `:help wincmd` for a list of all window commands
-vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
-vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
-vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
-vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
@@ -201,6 +217,15 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   group = vim.api.nvim_create_augroup('kickstart-highlight-yank', { clear = true }),
   callback = function()
     vim.highlight.on_yank()
+  end,
+})
+
+-- Open files with cursor in the the position it was when the file was last saved (" mark)
+vim.api.nvim_create_autocmd({ 'BufReadPost' }, {
+  pattern = { '*' },
+  callback = function()
+    -- vim.api.nvim_exec 'silent! normal! g`"'
+    vim.api.nvim_command 'silent! normal! g`"zv'
   end,
 })
 
@@ -230,6 +255,7 @@ vim.opt.rtp:prepend(lazypath)
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
   'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
+  'tpope/vim-repeat',
 
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
@@ -352,6 +378,14 @@ require('lazy').setup({
         end,
       },
       { 'nvim-telescope/telescope-ui-select.nvim' },
+      { -- file browser based on telescope
+        'nvim-telescope/telescope-file-browser.nvim',
+        dependencies = { 'nvim.telescope/telescope.nvim', 'nvim-lua/plenary.nvim' },
+      },
+      { -- better live grep
+        'fdschmidt93/telescope-egrepify.nvim',
+        dependencies = { 'nvim-telescope/telescope.nvim', 'nvim-lua/plenary.nvim' },
+      },
 
       -- Useful for getting pretty icons, but requires a Nerd Font.
       { 'nvim-tree/nvim-web-devicons', enabled = vim.g.have_nerd_font },
@@ -378,19 +412,73 @@ require('lazy').setup({
 
       -- [[ Configure Telescope ]]
       -- See `:help telescope` and `:help telescope.setup()`
+      local actions = require 'telescope.actions'
+
       require('telescope').setup {
         -- You can put your default mappings / updates / etc. in here
         --  All the info you're looking for is in `:help telescope.setup()`
-        --
-        -- defaults = {
-        --   mappings = {
-        --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
-        --   },
-        -- },
+        defaults = require('telescope.themes').get_ivy {
+          mappings = {
+            i = {
+              -- ['<c-enter>'] = 'to_fuzzy_refine',
+              ['<C-g>'] = 'close',
+              ['<C-p>'] = require('telescope.actions.layout').toggle_preview,
+            },
+            n = {
+              ['<C-g>'] = 'close',
+              ['<C-p>'] = require('telescope.actions.layout').toggle_preview,
+            },
+          },
+        },
         -- pickers = {}
         extensions = {
           ['ui-select'] = {
             require('telescope.themes').get_dropdown(),
+          },
+          egrepify = {
+            filename_hl = 'EgrepifySuffix',
+          },
+          file_browser = {
+            theme = 'ivy',
+            -- disables netrw and use telescope-file-browser in its place
+            hijack_netrw = false,
+            mappings = {
+              ['i'] = {
+                -- your custom insert mode mappings
+                ['<Right>'] = actions.select_default,
+                ['<C-l>'] = actions.select_default,
+                ['<Left>'] = require('telescope._extensions.file_browser.actions').goto_parent_dir,
+                ['<C-h>'] = require('telescope._extensions.file_browser.actions').goto_parent_dir,
+                ['<C-.>'] = require('telescope._extensions.file_browser.actions').toggle_hidden,
+                -- trying to make inserting a dot toogle the showing of hidden files like in ivy
+                -- ['.'] = function(prompt_bufnr)
+                --   vim.api.nvim_put({ '.' }, 'c', false, true)
+                --   -- print(vim.api.nvim_get_current_line())
+                --   if vim.api.nvim_get_current_line() == '> .' then
+                --     require('telescope._extensions.file_browser.actions').toggle_hidden(prompt_bufnr)
+                --   end
+                -- end,
+              },
+              ['n'] = {
+                ['<Right>'] = actions.select_default,
+                ['<C-l>'] = actions.select_default,
+                ['<Left>'] = require('telescope._extensions.file_browser.actions').goto_parent_dir,
+                ['<C-h>'] = require('telescope._extensions.file_browser.actions').goto_parent_dir,
+                ['c'] = false, -- fb_actions.create,
+                ['r'] = false, -- fb_actions.rename,
+                ['m'] = false, -- fb_actions.move,
+                ['y'] = false, -- fb_actions.copy,
+                ['d'] = false, -- fb_actions.remove,
+                ['o'] = false, -- fb_actions.open,
+                ['g'] = false, -- fb_actions.goto_parent_dir,
+                ['e'] = false, -- fb_actions.goto_home_dir,
+                ['w'] = false, -- fb_actions.goto_cwd,
+                ['t'] = false, -- fb_actions.change_cwd,
+                ['f'] = false, -- fb_actions.toggle_browser,
+                ['h'] = false, -- fb_actions.toggle_hidden,
+                ['s'] = false, -- fb_actions.toggle_all,
+              },
+            },
           },
         },
       }
@@ -398,45 +486,83 @@ require('lazy').setup({
       -- Enable Telescope extensions if they are installed
       pcall(require('telescope').load_extension, 'fzf')
       pcall(require('telescope').load_extension, 'ui-select')
+      require('telescope').load_extension 'file_browser'
+      require('telescope').load_extension 'egrepify'
 
       -- See `:help telescope.builtin`
       local builtin = require 'telescope.builtin'
-      vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
-      vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[S]earch [K]eymaps' })
-      vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
-      vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
-      vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
-      vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
-      vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
-      vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
-      vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
-      vim.keymap.set('n', '<leader><leader>', builtin.buffers, { desc = '[ ] Find existing buffers' })
+      local utils = require 'telescope.utils'
+      local egrepify = require('telescope').extensions.egrepify
+      ---@format disable
+      vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = 'Search Help' })
+      vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = 'Search Keymaps' })
+
+      vim.keymap.set('n', '<leader>sf', function()
+        builtin.find_files { cwd = utils.buffer_dir() }
+      end, { desc = 'Find Files Recursively' })
+
+      vim.keymap.set('n', '<leader>.', builtin.find_files, { desc = 'Find Project Files' })
+
+      vim.keymap.set('n', '<leader>ff', function()
+        require('telescope').extensions.file_browser.file_browser { cwd = utils.buffer_dir() }
+      end, { desc = 'Find Files' })
+
+      vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = 'Searh in Buffer' })
+      -- vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
+
+      vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = 'Search current Word' })
+
+      vim.keymap.set('n', '<leader>sg', function()
+        egrepify.egrepify { cwd = utils.buffer_dir() }
+      end, { desc = 'Search in Current Dir' })
+
+      vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = 'Search LSP Diagnostics' })
+      vim.keymap.set('n', "<leader>'", builtin.resume, { desc = 'Resume Last Search' })
+      vim.keymap.set('n', '<leader>fr', builtin.oldfiles, { desc = 'Search Recent Files' })
+      vim.keymap.set('n', '<leader>bb', builtin.buffers, { desc = 'Find Buffers' })
+      vim.keymap.set('n', '<leader>ss', builtin.current_buffer_fuzzy_find, { desc = 'Search in Buffer' })
 
       -- Slightly advanced example of overriding default behavior and theme
-      vim.keymap.set('n', '<leader>/', function()
-        -- You can pass additional configuration to Telescope to change the theme, layout, etc.
-        builtin.current_buffer_fuzzy_find(require('telescope.themes').get_dropdown {
-          winblend = 10,
-          previewer = false,
-        })
-      end, { desc = '[/] Fuzzily search in current buffer' })
-
       -- It's also possible to pass additional configuration options.
       --  See `:help telescope.builtin.live_grep()` for information about particular keys
-      vim.keymap.set('n', '<leader>s/', function()
-        builtin.live_grep {
-          grep_open_files = true,
-          prompt_title = 'Live Grep in Open Files',
-        }
-      end, { desc = '[S]earch [/] in Open Files' })
+      vim.keymap.set('n', '<leader>/', egrepify.egrepify, { desc = 'Search in Project Files' })
 
       -- Shortcut for searching your Neovim configuration files
       vim.keymap.set('n', '<leader>sn', function()
         builtin.find_files { cwd = vim.fn.stdpath 'config' }
-      end, { desc = '[S]earch [N]eovim files' })
+      end, { desc = 'Find Neovim files' })
+      ---@format enable
     end,
   },
 
+  -- project management
+  {
+    'ahmedkhalf/project.nvim',
+    config = function()
+      require('project_nvim').setup {
+        silent_chdir = false,
+        patterns = { 'pyproject.toml', 'package.json', '.git' },
+      }
+      require('telescope').load_extension 'projects'
+      vim.keymap.set('n', '<leader><leader>', require('telescope').extensions.projects.projects, { desc = 'Projects' })
+    end,
+  },
+
+  -- Better quickfix
+  -- { 'kevinhwang91/nvim-bqf' }, -- change non-prefixed keybindings so that does not mess with replacer
+  {
+    'gabrielpoca/replacer.nvim',
+    opts = { rename_files = false },
+    keys = {
+      {
+        '<leader>h',
+        function()
+          require('replacer').run()
+        end,
+        desc = 'run replacer.nvim',
+      },
+    },
+  },
   -- LSP Plugins
   {
     -- `lazydev` configures Lua LSP for your Neovim config, runtime and plugins
@@ -459,6 +585,10 @@ require('lazy').setup({
       { 'williamboman/mason.nvim', config = true }, -- NOTE: Must be loaded before dependants
       'williamboman/mason-lspconfig.nvim',
       'WhoIsSethDaniel/mason-tool-installer.nvim',
+
+      -- to find python venvs and automatically set them in LSP servers
+      { 'folke/neoconf.nvim', cmd = 'Neoconf', config = true },
+      'rafi/neoconf-venom.nvim',
 
       -- Useful status updates for LSP.
       -- NOTE: `opts = {}` is the same as calling `require('fidget').setup({})`
@@ -493,6 +623,8 @@ require('lazy').setup({
       -- If you're wondering about lsp vs treesitter, you can check out the wonderfully
       -- and elegantly composed help section, `:help lsp-vs-treesitter`
 
+      require('venom').setup {}
+
       --  This function gets run when an LSP attaches to a particular buffer.
       --    That is to say, every time a new file is opened that is associated with
       --    an lsp (for example, opening `main.rs` is associated with `rust_analyzer`) this
@@ -525,15 +657,15 @@ require('lazy').setup({
           -- Jump to the type of the word under your cursor.
           --  Useful when you're not sure what type a variable is and you want to see
           --  the definition of its *type*, not where it was *defined*.
-          map('<leader>D', require('telescope.builtin').lsp_type_definitions, 'Type [D]efinition')
+          map('<leader>gD', require('telescope.builtin').lsp_type_definitions, '[G]oto Type [D]efinition')
 
           -- Fuzzy find all the symbols in your current document.
           --  Symbols are things like variables, functions, types, etc.
-          map('<leader>ds', require('telescope.builtin').lsp_document_symbols, '[D]ocument [S]ymbols')
+          map('<leader>si', require('telescope.builtin').lsp_document_symbols, 'Search Symbols in Buffer')
 
           -- Fuzzy find all the symbols in your current workspace.
           --  Similar to document symbols, except searches over your entire project.
-          map('<leader>ws', require('telescope.builtin').lsp_dynamic_workspace_symbols, '[W]orkspace [S]ymbols')
+          map('<leader>sI', require('telescope.builtin').lsp_dynamic_workspace_symbols, 'Search Symbols in Project')
 
           -- Rename the variable under your cursor.
           --  Most Language Servers support renaming across files, etc.
@@ -545,7 +677,17 @@ require('lazy').setup({
 
           -- WARN: This is not Goto Definition, this is Goto Declaration.
           --  For example, in C this would take you to the header.
-          map('gD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
+          -- map('gD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
+
+          -- toggle diagnostics
+          map('<leader>td', function()
+            vim.diagnostic.enable(not vim.diagnostic.is_enabled { bufnr = event.buf })
+          end, '[T]oggle Show [D]iagnostic')
+
+          map('<leader>tv', function()
+            local current = vim.diagnostic.config().virtual_text
+            vim.diagnostic.config { virtual_text = not current }
+          end, '[T]oggle Show Diagnostic [V]irtual Text')
 
           -- The following two autocommands are used to highlight references of the
           -- word under your cursor when your cursor rests there for a little while.
@@ -607,7 +749,8 @@ require('lazy').setup({
       local servers = {
         -- clangd = {},
         -- gopls = {},
-        -- pyright = {},
+        pyright = {},
+        -- basedpyright = {},
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
@@ -628,7 +771,7 @@ require('lazy').setup({
                 callSnippet = 'Replace',
               },
               -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
-              -- diagnostics = { disable = { 'missing-fields' } },
+              diagnostics = { disable = { 'missing-fields' } },
             },
           },
         },
@@ -764,9 +907,9 @@ require('lazy').setup({
         -- No, but seriously. Please read `:help ins-completion`, it is really good!
         mapping = cmp.mapping.preset.insert {
           -- Select the [n]ext item
-          ['<C-n>'] = cmp.mapping.select_next_item(),
+          ['<C-j>'] = cmp.mapping.select_next_item(),
           -- Select the [p]revious item
-          ['<C-p>'] = cmp.mapping.select_prev_item(),
+          ['<C-k>'] = cmp.mapping.select_prev_item(),
 
           -- Scroll the documentation window [b]ack / [f]orward
           ['<C-b>'] = cmp.mapping.scroll_docs(-4),
@@ -775,7 +918,7 @@ require('lazy').setup({
           -- Accept ([y]es) the completion.
           --  This will auto-import if your LSP supports it.
           --  This will expand snippets if the LSP sent a snippet.
-          ['<C-y>'] = cmp.mapping.confirm { select = true },
+          ['<CR>'] = cmp.mapping.confirm { select = true },
 
           -- If you prefer more traditional completion keymaps,
           -- you can uncomment the following lines
@@ -842,6 +985,14 @@ require('lazy').setup({
     end,
   },
 
+  -- {
+  --   'rebelot/kanagawa.nvim',
+  --   priority = 10000,
+  --   init = function()
+  --     vim.cmd.colorscheme = 'kanagawa-dragon'
+  --   end,
+  -- },
+
   -- Highlight todo, notes, etc in comments
   { 'folke/todo-comments.nvim', event = 'VimEnter', dependencies = { 'nvim-lua/plenary.nvim' }, opts = { signs = false } },
 
@@ -861,23 +1012,126 @@ require('lazy').setup({
       -- - saiw) - [S]urround [A]dd [I]nner [W]ord [)]Paren
       -- - sd'   - [S]urround [D]elete [']quotes
       -- - sr)'  - [S]urround [R]eplace [)] [']
-      require('mini.surround').setup()
+      -- Lo he configurado para que sea parecido a vim-surround
+      require('mini.surround').setup {
+        mappings = {
+          add = 'ys',
+          delete = 'ds',
+          find = '',
+          find_left = '',
+          highlight = '',
+          replace = 'cs',
+          update_n_lines = '',
 
-      -- Simple and easy statusline.
-      --  You could remove this setup call if you don't like it,
-      --  and try some other statusline plugin
-      local statusline = require 'mini.statusline'
-      -- set use_icons to true if you have a Nerd Font
-      statusline.setup { use_icons = vim.g.have_nerd_font }
+          -- Add this only if you don't want to use extended mappings
+          suffix_last = '',
+          suffix_next = '',
+        },
+        search_method = 'cover_or_next',
+        config = function() end,
+      }
 
-      -- You can configure sections in the statusline by overriding their
-      -- default behavior. For example, here we set the section for
-      -- cursor location to LINE:COLUMN
-      ---@diagnostic disable-next-line: duplicate-set-field
-      statusline.section_location = function()
-        return '%2l:%-2v'
+      -- Remap adding surrounding to Visual mode selection to make it like vim-surround
+      vim.keymap.del('x', 'ys')
+      vim.keymap.set('x', 'S', [[:<C-u>lua MiniSurround.add('visual')<CR>]], { silent = true })
+
+      -- Make special mapping for "add surrounding for line"
+      vim.keymap.set('n', 'yss', 'ys_', { remap = true })
+
+      if vim.g.started_by_firenvim == true then
+        vim.o.laststatus = 0
+        vim.keymap.set('n', '<leader>fp', function()
+          vim.cmd 'set filetype=python'
+        end, { silent = false })
+        vim.keymap.set('n', '<leader>fy', function()
+          vim.cmd 'set filetype=yaml'
+        end)
+        vim.keymap.set('n', '<leader>fj', function()
+          vim.cmd 'set filetype=json'
+        end)
+        vim.keymap.set('n', '<leader>fs', function()
+          vim.cmd 'set filetype=scala'
+        end)
+      else
+        -- Simple and easy statusline.
+        --  You could remove this setup call if you don't like it,
+        --  and try some other statusline plugin
+        --  disabled if we are in firenvim
+        local statusline = require 'mini.statusline'
+        -- set use_icons to true if you have a Nerd Font
+        statusline.setup { use_icons = vim.g.have_nerd_font }
+
+        -- You can configure sections in the statusline by overriding their
+        -- default behavior. For example, here we set the section for
+        -- cursor location to LINE:COLUMN
+        ---@diagnostic disable-next-line: duplicate-set-field
+        statusline.section_location = function()
+          return '%2l:%-2v'
+        end
+
+        -- if not running in firenvm set gui fonts
+        -- vim.o.guifont = 'Source Code Pro:h11:#h-slight'
+        vim.o.guifont = 'SauceCodePro Nerd Font:h11'
       end
 
+      -- Simple file browser anf file editor (maybe replace with the one in mini.extra)
+      -- Create mapping to show/hide dot-files
+      local show_dotfiles = false
+
+      local filter_show = function(fs_entry)
+        return true
+      end
+
+      local filter_hide = function(fs_entry)
+        return not vim.startswith(fs_entry.name, '.')
+      end
+
+      local toggle_dotfiles = function()
+        show_dotfiles = not show_dotfiles
+        local new_filter = show_dotfiles and filter_show or filter_hide
+        MiniFiles.refresh { content = { filter = new_filter } }
+      end
+
+      vim.api.nvim_create_autocmd('User', {
+        pattern = 'MiniFilesBufferCreate',
+        callback = function(args)
+          local buf_id = args.data.buf_id
+          -- Tweak left-hand side of mapping to your liking
+          vim.keymap.set('n', 'g.', toggle_dotfiles, { buffer = buf_id })
+          -- extra 'exit' keymap
+          vim.keymap.set('n', '<C-g>', MiniFiles.close, { desc = 'Close File Browser' })
+        end,
+      })
+
+      require('mini.files').setup {
+        options = {
+          use_as_default_explorer = false,
+        },
+        windows = { preview = true },
+        mappings = {
+          close = '<esc>',
+          go_in = '<Right>',
+          go_in_plus = '<M-Right>',
+          go_out = '<Left>',
+          go_out_plus = '<M-Left>',
+          show_help = '?',
+        },
+        content = { filter = filter_hide },
+      }
+
+      local open_in_current_dir = function()
+        MiniFiles.open(vim.api.nvim_buf_get_name(0), false)
+      end
+
+      vim.keymap.set('n', '<leader>fb', open_in_current_dir, { desc = 'File Browser' })
+
+      -- picker
+      -- require('mini.pick').setup {}
+      -- vim.keymap.set('n', '<leader>ff', function()
+      --   require('mini.pick').builtin.files()
+      -- end, {})
+      --
+      -- require('mini.extra').setup {}
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
@@ -920,7 +1174,7 @@ require('lazy').setup({
   -- require 'kickstart.plugins.debug',
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
-  -- require 'kickstart.plugins.autopairs',
+  require 'kickstart.plugins.autopairs',
   -- require 'kickstart.plugins.neo-tree',
   -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
@@ -930,6 +1184,186 @@ require('lazy').setup({
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
   --    For additional information, see `:help lazy.nvim-lazy.nvim-structuring-your-plugins`
   -- { import = 'custom.plugins' },
+
+  -- Aqui meto mis plugins
+
+  { -- magit for vim
+    'NeogitOrg/neogit',
+    dependencies = {
+      'nvim-lua/plenary.nvim', -- required
+      'sindrets/diffview.nvim', -- optional - Diff integration
+
+      -- Only one of these is needed.
+      'nvim-telescope/telescope.nvim', -- optional
+      -- 'ibhagwan/fzf-lua', -- optional
+      -- 'echasnovski/mini.pick', -- optional
+    },
+    config = function()
+      require('neogit').setup {
+        kind = 'vsplit',
+      }
+      vim.keymap.set('n', '<leader>gg', function()
+        vim.cmd 'Neogit cwd=%:p:h'
+      end)
+    end,
+  },
+  { -- firenvim, para editar textboxes arbitrarios en los navegadores
+    'glacambre/firenvim',
+    build = ':call firenvim#install(0)',
+    config = function()
+      vim.g.firenvim_config = {
+        globalSettings = { alt = 'all' },
+        localSettings = {
+          ['.*'] = {
+            cmdline = 'firenvim', -- one of neovim, firenvim or none
+            content = 'text',
+            priority = 0,
+            selector = 'textarea',
+            takeover = 'never',
+          },
+        },
+      }
+    end,
+    opts = {},
+  },
+  { -- leap (un vim-sneak/evil-snipe mejorado)
+    'ggandor/leap.nvim',
+    opts = {
+      equivalence_classes = {
+        ' \t\r\n',
+        'aäàáâãā',
+        'dḍ',
+        'eëéèêē',
+        'gǧğ',
+        'hḥḫ',
+        'iïīíìîı',
+        'nñ',
+        'oō',
+        'sṣšß',
+        'tṭ',
+        'uúûüűū',
+        'zẓ',
+      },
+    },
+    config = function(_, opts)
+      local leap = require 'leap'
+      for k, v in pairs(opts) do
+        leap.opts[k] = v
+      end
+      -- leap.add_default_mappings(true)
+
+      -- make s bidirectional and S other window
+      vim.keymap.set('n', 's', '<Plug>(leap)')
+      vim.keymap.set('n', 'S', '<Plug>(leap-from-window)')
+      vim.keymap.set({ 'x', 'o' }, 'x', '<Plug>(leap-forward)')
+      vim.keymap.set({ 'n', 'o' }, 'gs', function()
+        require('leap.remote').action()
+      end)
+
+      vim.api.nvim_create_augroup('LeapRemote', {})
+      vim.api.nvim_create_autocmd('User', {
+        pattern = 'RemoteOperationDone',
+        group = 'LeapRemote',
+        callback = function(event)
+          -- Do not paste if some special register was in use.
+          if vim.v.operator == 'y' and event.data.register == '+' then
+            vim.cmd 'normal! p'
+          end
+        end,
+      })
+
+      local default_text_objects = {
+        'iw',
+        'iW',
+        'is',
+        'ip',
+        'i[',
+        'i]',
+        'i(',
+        'i)',
+        'ib',
+        'i>',
+        'i<',
+        'it',
+        'i{',
+        'i}',
+        'iB',
+        'i"',
+        "i'",
+        'i`',
+        'ia',
+        'aw',
+        'aW',
+        'as',
+        'ap',
+        'a[',
+        'a]',
+        'a(',
+        'a)',
+        'ab',
+        'a>',
+        'a<',
+        'at',
+        'a{',
+        'a}',
+        'aB',
+        'a"',
+        "a'",
+        'a`',
+        'aa',
+      }
+
+      -- Create remote versions of all native text objects by inserting `r`
+      -- into the middle (`iw` becomes `irw`, etc.):
+      for _, tobj in ipairs(default_text_objects) do
+        vim.keymap.set({ 'x', 'o' }, tobj:sub(1, 1) .. 'r' .. tobj:sub(2), function()
+          require('leap.remote').action { input = tobj }
+        end)
+      end
+    end,
+  },
+  {
+    'ramilito/kubectl.nvim',
+    config = function()
+      require('kubectl').setup {}
+      vim.keymap.set('n', '<leader>ok', require('kubectl').toggle, { noremap = true, silent = true, desc = 'Open Kubernetes' })
+    end,
+  },
+  {
+    'rafi/neoconf-venom.nvim',
+    dependencies = { 'nvim-lua/plenary.nvim', 'folke/neoconf.nvim' },
+  },
+  -- { -- beautiful notification windows
+  --   'folke/noice.nvim',
+  --   event = 'VeryLazy',
+  --   opts = {
+  --     lsp = {
+  --       -- override markdown rendering so that **cmp** and other plugins use **Treesitter**
+  --       override = {
+  --         ['vim.lsp.util.convert_input_to_markdown_lines'] = true,
+  --         ['vim.lsp.util.stylize_markdown'] = true,
+  --         ['cmp.entry.get_documentation'] = true, -- requires hrsh7th/nvim-cmp
+  --       },
+  --     },
+  --     -- you can enable a preset for easier configuration
+  --     presets = {
+  --       bottom_search = true, -- use a classic bottom cmdline for search
+  --       command_palette = true, -- position the cmdline and popupmenu together
+  --       long_message_to_split = true, -- long messages will be sent to a split
+  --       inc_rename = false, -- enables an input dialog for inc-rename.nvim
+  --       lsp_doc_border = false, -- add a border to hover docs and signature help
+  --     },
+  --     -- add any options here
+  --   },
+  --   dependencies = {
+  --     -- if you lazy-load any plugin below, make sure to add proper `module="..."` entries
+  --     'MunifTanjim/nui.nvim',
+  --     -- OPTIONAL:
+  --     --   `nvim-notify` is only needed, if you want to use the notification view.
+  --     --   If not available, we use `mini` as the fallback
+  --     'rcarriga/nvim-notify',
+  --   },
+  -- },
 }, {
   ui = {
     -- If you are using a Nerd Font: set icons to an empty table which will use the
