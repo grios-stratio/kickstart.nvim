@@ -142,7 +142,7 @@ vim.opt.updatetime = 250
 
 -- Decrease mapped sequence wait time
 -- Displays which-key popup sooner
-vim.opt.timeoutlen = 300
+vim.opt.timeoutlen = 500
 
 -- Configure how new splits should be opened
 vim.opt.splitright = true
@@ -418,6 +418,9 @@ require('lazy').setup({
         -- You can put your default mappings / updates / etc. in here
         --  All the info you're looking for is in `:help telescope.setup()`
         defaults = require('telescope.themes').get_ivy {
+          generic_sorter = require('telescope.sorters').get_substr_matcher,
+          file_sorter = require('telescope.sorters').get_substr_matcher,
+          preview = { hide_on_startup = true },
           mappings = {
             i = {
               -- ['<c-enter>'] = 'to_fuzzy_refine',
@@ -432,6 +435,10 @@ require('lazy').setup({
         },
         -- pickers = {}
         extensions = {
+          fzf = {
+            override_generic_sorter = false,
+            override_file_sorter = false,
+          },
           ['ui-select'] = {
             require('telescope.themes').get_dropdown(),
           },
@@ -507,8 +514,8 @@ require('lazy').setup({
         require('telescope').extensions.file_browser.file_browser { cwd = utils.buffer_dir() }
       end, { desc = 'Find Files' })
 
-      vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = 'Searh in Buffer' })
-      -- vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
+      -- vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = 'Searh in Buffer' })
+      vim.keymap.set('n', '<leader>st', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
 
       vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = 'Search current Word' })
 
@@ -516,7 +523,10 @@ require('lazy').setup({
         egrepify.egrepify { cwd = utils.buffer_dir() }
       end, { desc = 'Search in Current Dir' })
 
-      vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = 'Search LSP Diagnostics' })
+      vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = 'Search LSP All Diagnostics' })
+      vim.keymap.set('n', '<leader>sD', function()
+        builtin.diagnostics { bufnr = 0 }
+      end, { desc = 'Search LSP Buffer Diagnostics' })
       vim.keymap.set('n', "<leader>'", builtin.resume, { desc = 'Resume Last Search' })
       vim.keymap.set('n', '<leader>fr', builtin.oldfiles, { desc = 'Search Recent Files' })
       vim.keymap.set('n', '<leader>bb', builtin.buffers, { desc = 'Find Buffers' })
@@ -577,6 +587,141 @@ require('lazy').setup({
     },
   },
   { 'Bilal2453/luvit-meta', lazy = true },
+  {
+    'scalameta/nvim-metals',
+    dependencies = {
+      'nvim-lua/plenary.nvim',
+      {
+        'mfussenegger/nvim-dap',
+        config = function(self, opts)
+          -- Debug settings if you're using nvim-dap
+          local dap = require 'dap'
+
+          dap.configurations.scala = {
+            {
+              type = 'scala',
+              request = 'launch',
+              name = 'RunOrTest',
+              metals = {
+                runType = 'runOrTestFile',
+                --args = { "firstArg", "secondArg", "thirdArg" }, -- here just as an example
+              },
+            },
+            {
+              type = 'scala',
+              request = 'launch',
+              name = 'Test Target',
+              metals = {
+                runType = 'testTarget',
+              },
+            },
+          }
+        end,
+      },
+    },
+    ft = { 'scala', 'sbt', 'java' },
+    opts = function()
+      local metals_config = require('metals').bare_config()
+      local map = vim.keymap.set
+
+      -- Example of settings
+      metals_config.settings = {
+        showImplicitArguments = true,
+        excludedPackages = { 'akka.actor.typed.javadsl', 'com.github.swagger.akka.javadsl' },
+      }
+
+      -- *READ THIS*
+      -- I *highly* recommend setting statusBarProvider to either "off" or "on"
+      --
+      -- "off" will enable LSP progress notifications by Metals and you'll need
+      -- to ensure you have a plugin like fidget.nvim installed to handle them.
+      --
+      -- "on" will enable the custom Metals status extension and you *have* to have
+      -- a have settings to capture this in your statusline or else you'll not see
+      -- any messages from metals. There is more info in the help docs about this
+      metals_config.init_options.statusBarProvider = 'off'
+
+      -- Example if you are using cmp how to make sure the correct capabilities for snippets are set
+      metals_config.capabilities = require('cmp_nvim_lsp').default_capabilities()
+
+      metals_config.on_attach = function(client, bufnr)
+        require('metals').setup_dap()
+
+        -- LSP mappings
+
+        map('n', '<leader>cw', function()
+          require('metals').hover_worksheet()
+        end)
+
+        -- TODO: check if i want to add any of these to the "general" LSP mappings
+        -- all workspace diagnostics
+        -- map("n", "<leader>aa", vim.diagnostic.setqflist)
+        --
+        -- -- all workspace errors
+        -- map("n", "<leader>ae", function()
+        --   vim.diagnostic.setqflist({ severity = "E" })
+        -- end)
+        --
+        -- -- all workspace warnings
+        -- map("n", "<leader>aw", function()
+        --   vim.diagnostic.setqflist({ severity = "W" })
+        -- end)
+        --
+        -- -- buffer diagnostics only
+        -- map("n", "<leader>d", vim.diagnostic.setloclist)
+        --
+        -- map("n", "[c", function()
+        --   vim.diagnostic.goto_prev({ wrap = false })
+        -- end)
+        --
+        -- map("n", "]c", function()
+        --   vim.diagnostic.goto_next({ wrap = false })
+        -- end)
+        --
+        -- -- Example mappings for usage with nvim-dap. If you don't use that, you can
+        -- -- skip these
+        -- map("n", "<leader>dc", function()
+        --   require("dap").continue()
+        -- end)
+        --
+        -- map("n", "<leader>dr", function()
+        --   require("dap").repl.toggle()
+        -- end)
+        --
+        -- map("n", "<leader>dK", function()
+        --   require("dap.ui.widgets").hover()
+        -- end)
+        --
+        -- map("n", "<leader>dt", function()
+        --   require("dap").toggle_breakpoint()
+        -- end)
+        --
+        -- map("n", "<leader>dso", function()
+        --   require("dap").step_over()
+        -- end)
+        --
+        -- map("n", "<leader>dsi", function()
+        --   require("dap").step_into()
+        -- end)
+        --
+        -- map("n", "<leader>dl", function()
+        --   require("dap").run_last()
+        -- end)
+      end
+
+      return metals_config
+    end,
+    config = function(self, metals_config)
+      local nvim_metals_group = vim.api.nvim_create_augroup('nvim-metals', { clear = true })
+      vim.api.nvim_create_autocmd('FileType', {
+        pattern = self.ft,
+        callback = function()
+          require('metals').initialize_or_attach(metals_config)
+        end,
+        group = nvim_metals_group,
+      })
+    end,
+  },
   {
     -- Main LSP Configuration
     'neovim/nvim-lspconfig',
@@ -657,7 +802,7 @@ require('lazy').setup({
           -- Jump to the type of the word under your cursor.
           --  Useful when you're not sure what type a variable is and you want to see
           --  the definition of its *type*, not where it was *defined*.
-          map('<leader>gD', require('telescope.builtin').lsp_type_definitions, '[G]oto Type [D]efinition')
+          map('gD', require('telescope.builtin').lsp_type_definitions, '[G]oto Type [D]efinition')
 
           -- Fuzzy find all the symbols in your current document.
           --  Symbols are things like variables, functions, types, etc.
@@ -814,7 +959,7 @@ require('lazy').setup({
     cmd = { 'ConformInfo' },
     keys = {
       {
-        '<leader>f',
+        '<leader>cf',
         function()
           require('conform').format { async = true, lsp_format = 'fallback' }
         end,
@@ -843,7 +988,7 @@ require('lazy').setup({
       formatters_by_ft = {
         lua = { 'stylua' },
         -- Conform can also run multiple formatters sequentially
-        -- python = { "isort", "black" },
+        python = { 'black' },
         --
         -- You can use 'stop_after_first' to run the first available formatter from the list
         -- javascript = { "prettierd", "prettier", stop_after_first = true },
@@ -886,6 +1031,14 @@ require('lazy').setup({
       --  into multiple repos for maintenance purposes.
       'hrsh7th/cmp-nvim-lsp',
       'hrsh7th/cmp-path',
+      {
+        'MattiasMTS/cmp-dbee',
+        dependencies = {
+          { 'kndndrj/nvim-dbee' },
+        },
+        ft = 'sql', -- optional but good to have
+        opts = {}, -- needed
+      },
     },
     config = function()
       -- See `:help cmp`
@@ -950,6 +1103,13 @@ require('lazy').setup({
             end
           end, { 'i', 's' }),
 
+          cmp.setup.filetype({ 'sql' }, {
+            sources = {
+              -- { name = 'vim-dadbod-completion' },
+              { name = 'cmp-dbee' },
+              { nme = 'buffer' },
+            },
+          }),
           -- For more advanced Luasnip keymaps (e.g. selecting choice nodes, expansion) see:
           --    https://github.com/L3MON4D3/LuaSnip?tab=readme-ov-file#keymaps
         },
@@ -962,6 +1122,7 @@ require('lazy').setup({
           { name = 'nvim_lsp' },
           { name = 'luasnip' },
           { name = 'path' },
+          { name = 'cmp-dbee' },
         },
       }
     end,
@@ -1071,7 +1232,7 @@ require('lazy').setup({
 
         -- if not running in firenvm set gui fonts
         -- vim.o.guifont = 'Source Code Pro:h11:#h-slight'
-        vim.o.guifont = 'SauceCodePro Nerd Font:h11'
+        vim.o.guifont = 'SauceCodePro Nerd Font:h10'
       end
 
       -- Simple file browser anf file editor (maybe replace with the one in mini.extra)
@@ -1134,6 +1295,19 @@ require('lazy').setup({
       -- require('mini.extra').setup {}
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
+    end,
+  },
+  {
+    'tigion/nvim-asciidoc-preview',
+    ft = { 'asciidoc' },
+    build = 'cd server && npm install --omit=dev',
+    ---@module 'asciidoc-preview'
+    ---@type asciidoc-preview.Config
+    opts = {
+      -- Add user configuration here
+    },
+    config = function()
+      vim.keymap.set('n', '<leader>cp', ':AsciiDocPreview<CR>', { desc = 'Preview Asciidoc document' })
     end,
   },
   { -- Highlight, edit, and navigate code
@@ -1200,7 +1374,7 @@ require('lazy').setup({
     },
     config = function()
       require('neogit').setup {
-        kind = 'vsplit',
+        kind = 'tab',
       }
       vim.keymap.set('n', '<leader>gg', function()
         vim.cmd 'Neogit cwd=%:p:h'
@@ -1332,6 +1506,51 @@ require('lazy').setup({
   {
     'rafi/neoconf-venom.nvim',
     dependencies = { 'nvim-lua/plenary.nvim', 'folke/neoconf.nvim' },
+  },
+  {
+    'kndndrj/nvim-dbee',
+    dependencies = {
+      'MunifTanjim/nui.nvim',
+    },
+    build = function()
+      -- Install tries to automatically detect the install method.
+      -- if it fails, try calling it with one of these parameters:
+      --    "curl", "wget", "bitsadmin", "go"
+      require('dbee').install()
+    end,
+    config = function()
+      require('dbee').setup(--[[optional config]])
+    end,
+  },
+  {
+    'kristijanhusak/vim-dadbod-ui',
+    dependencies = {
+      { 'tpope/vim-dadbod', lazy = true },
+      { 'kristijanhusak/vim-dadbod-completion', ft = { 'sql', 'plsql' }, lazy = true }, -- Optional
+    },
+    cmd = {
+      'DBUI',
+      'DBUIToggle',
+      'DBUIAddConnection',
+      'DBUIFindBuffer',
+    },
+    init = function()
+      -- Your DBUI configuration
+      vim.g.db_ui_use_nerd_fonts = 1
+      vim.api.nvim_command 'autocmd FileType dbui setlocal tabstop=2 shiftwidth=2'
+    end,
+  },
+  { -- scrollback for kitty with nvim
+    'mikesmithgh/kitty-scrollback.nvim',
+    enabled = true,
+    lazy = true,
+    cmd = { 'KittyScrollbackGenerateKittens', 'KittyScrollbackCheckHealth', 'KittyScrollbackGenerateCommandLineEditing' },
+    event = { 'User KittyScrollbackLaunch' },
+    -- version = '*', -- latest stable version, may have breaking changes if major version changed
+    -- version = '^6.0.0', -- pin major version, include fixes and features that do not have breaking changes
+    config = function()
+      require('kitty-scrollback').setup()
+    end,
   },
   -- { -- beautiful notification windows
   --   'folke/noice.nvim',

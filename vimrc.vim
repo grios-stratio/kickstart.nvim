@@ -23,13 +23,12 @@ nnoremap <leader>wm <C-w>o
 nnoremap <leader>wd :close<cr>
 
 " Buffers
-nnoremap <leader>bb    :buffers<cr>:buffer<space>
-nnoremap <leader>bn    :bnext<cr>
+" nnoremap <leader>bb    :buffers<cr>:buffer<space>
+" nnoremap <leader>bn    :bnext<cr>
 nnoremap <leader><tab> :b#<cr>
-nnoremap <leader>bp    :bprevious<cr>
-nnoremap <leader>bd    :bdelete<cr>
-nnoremap <C-x>k        :buffers<cr>:bdelete<space>
-
+" nnoremap <leader>bp    :bprevious<cr>
+" nnoremap <leader>bd    :bdelete<cr>
+" nnoremap <C-x>k        :buffers<cr>:bdelete<space>
 
 inoremap jk <esc>
 nnoremap <C-g> <esc>
@@ -45,7 +44,6 @@ command -range UnwrapEx :silent<line1>,<line2> s/\\t/    /ge | s/\\n/<cr>/ge
 
 if has("nvim")
     " tnoremap <esc> <C-\><C-n>
-    tnoremap jkl <C-\><C-n>
     tnoremap lkj <C-\><C-n>
     tnoremap <C-v>jk <esc>
 
@@ -53,3 +51,17 @@ if has("nvim")
     "highlight! link TermCursor Cursor
     highlight! TermCursorNC guibg=red guifg=white ctermbg=1 ctermfg=15
 endif
+
+" temporary mappings to write the documentation, delete 
+nnoremap <leader>ia a*Stratio GenAI API*
+nnoremap <leader>iu a_Stratio GenAI UI_
+nnoremap <leader>iw a_Stratio GenAI Gateway_
+nnoremap <leader>ir a_Stratio Rocket_
+nnoremap <leader>is aApache Spark™
+nnoremap <leader>ii a_Stratio Intelligence_
+nnoremap <leader>ig a_Stratio Governance_
+nnoremap <leader>iv a_Stratio Virtualizer_
+nnoremap <leader>id a_Stratio Discovery_
+nnoremap <leader>ip a*Stratio GenAI Developer Proxy*
+nnoremap <leader>ic a*Stratio GenAI Core*
+
